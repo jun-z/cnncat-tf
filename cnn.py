@@ -8,7 +8,7 @@ def get_batch(fn_queue, num_steps, batch_size):
     context_features = {
         'label': tf.FixedLenFeature([], dtype=tf.int64),
         'length': tf.FixedLenFeature([], dtype=tf.int64),
-        'weight': tf.FixedLenFeature([], dtype=tf.int64),
+        'weight': tf.FixedLenFeature([], dtype=tf.float32),
     }
     sequence_features = {
         'tokens': tf.FixedLenSequenceFeature([], dtype=tf.int64)
