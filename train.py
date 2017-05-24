@@ -17,6 +17,7 @@ tf.app.flags.DEFINE_integer('num_labels', 46, 'Number of labels.')
 tf.app.flags.DEFINE_integer('num_filters', 64, 'Number of filters per size.')
 tf.app.flags.DEFINE_integer('emb_size', 100, 'Size of embedding.')
 tf.app.flags.DEFINE_integer('vocab_size', 1000, 'Size of vocabulary.')
+tf.app.flags.DEFINE_integer('max_to_keep', 0, 'Max number of models to keep.')
 tf.app.flags.DEFINE_float('l2_cost', .0, 'L2 Cost.')
 tf.app.flags.DEFINE_float('keep_prob', .5, 'Keep prob for dropout')
 tf.app.flags.DEFINE_float('learning_rate', .001, 'Learning rate.')
@@ -40,6 +41,7 @@ def create_model(session, fn_queue):
         FLAGS.l2_cost,
         FLAGS.keep_prob,
         FLAGS.learning_rate,
+        FLAGS.max_to_keep,
         tf.float16 if FLAGS.use_fp16 else tf.float32)
 
     ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
@@ -64,6 +66,10 @@ def train():
 
     fn_queue = tf.train.string_input_producer(
         string_tensor=train_files, num_epochs=FLAGS.num_epochs)
+
+    if not os.path.exists(FLAGS.train_dir):
+        print('Directory %s does not exist, creating...' % FLAGS.train_dir)
+        os.makedirs(FLAGS.train_dir)
 
     with tf.Session() as sess:
         step, model = create_model(sess, fn_queue)

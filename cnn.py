@@ -43,6 +43,7 @@ class CNN(object):
                  l2_cost,
                  keep_prob,
                  learning_rate,
+                 max_to_keep,
                  dtype=tf.float32):
 
         batch = get_batch(fn_queue, num_steps, batch_size)
@@ -106,4 +107,5 @@ class CNN(object):
 
         self.probs = tf.nn.softmax(logits)
         self.train = optimizer.apply_gradients(zip(grads, params))
-        self.saver = tf.train.Saver(tf.global_variables())
+        self.saver = tf.train.Saver(
+            tf.global_variables(), max_to_keep=max_to_keep)
