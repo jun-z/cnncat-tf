@@ -4,6 +4,7 @@ from __future__ import division
 
 import os
 import time
+import json
 import tensorflow as tf
 from cnn import CNN
 
@@ -12,11 +13,8 @@ tf.app.flags.DEFINE_string('train_dir', './model', 'Training directory.')
 tf.app.flags.DEFINE_string('filter_sizes', '2,3', 'Filter sizes.')
 tf.app.flags.DEFINE_integer('batch_size', 50, 'Batch size.')
 tf.app.flags.DEFINE_integer('num_epochs', 5, 'Number of epochs.')
-tf.app.flags.DEFINE_integer('num_steps', 500, 'Max number of time steps')
-tf.app.flags.DEFINE_integer('num_labels', 46, 'Number of labels.')
 tf.app.flags.DEFINE_integer('num_filters', 64, 'Number of filters per size.')
 tf.app.flags.DEFINE_integer('emb_size', 100, 'Size of embedding.')
-tf.app.flags.DEFINE_integer('vocab_size', 1000, 'Size of vocabulary.')
 tf.app.flags.DEFINE_integer('max_to_keep', 0, 'Max number of models to keep.')
 tf.app.flags.DEFINE_float('l2_cost', .0, 'L2 Cost.')
 tf.app.flags.DEFINE_float('keep_prob', .5, 'Keep prob for dropout')
@@ -27,16 +25,19 @@ FLAGS = tf.app.flags.FLAGS
 
 
 def create_model(session, fn_queue):
+    with open(os.path.join(FLAGS.data_dir, 'meta.json')) as f:
+        meta = json.load(f)
+
     filter_sizes = [int(fs) for fs in FLAGS.filter_sizes.split(',')]
 
     model = CNN(
         fn_queue,
         FLAGS.batch_size,
-        FLAGS.num_steps,
-        FLAGS.num_labels,
+        meta['num_steps'],
+        meta['num_labels'],
         FLAGS.num_filters,
         FLAGS.emb_size,
-        FLAGS.vocab_size,
+        meta['vocab_size'],
         filter_sizes,
         FLAGS.l2_cost,
         FLAGS.keep_prob,

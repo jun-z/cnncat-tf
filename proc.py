@@ -3,6 +3,7 @@ from __future__ import print_function
 from __future__ import division
 
 import os
+import json
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -146,9 +147,11 @@ if __name__ == '__main__':
     print('Initializing...')
     _vocab, _labels, _length = init(data)
 
-    print('Vocab size: %i' % len(_vocab))
-    print('Num labels: %i' % len(_labels))
-    print('Max length: %i.' % _length)
+    meta = {
+        'num_steps': _length,
+        'num_labels': len(_labels),
+        'vocab_size': len(_vocab)
+    }
 
     print('Splitting data...')
     split = get_split(data)
@@ -157,6 +160,11 @@ if __name__ == '__main__':
     data = aggregate(data)
 
     data['split'] = data.text.apply(lambda x: split[x])
+    meta['train_size'] = data[data.split == 'train'].shape[0]
+
+    print('Writing meta data...')
+    with open(get_path('meta.json'), 'w') as f:
+        json.dump(meta, f)
 
     print('Writing to TFRecords...')
     write_records(data, _vocab, _labels, _length)
