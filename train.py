@@ -28,6 +28,11 @@ def create_model(session, fn_queue):
     with open(os.path.join(FLAGS.data_dir, 'meta.json')) as f:
         meta = json.load(f)
 
+    if meta['train_size'] % FLAGS.batch_size > 0:
+        steps = meta['train_size'] // FLAGS.batch_size + 1
+    else:
+        steps = meta['train_size'] // FLAGS.batch_size
+
     filter_sizes = [int(fs) for fs in FLAGS.filter_sizes.split(',')]
 
     model = CNN(
@@ -50,13 +55,13 @@ def create_model(session, fn_queue):
         print('Restoring model from %s.' % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
         session.run(tf.local_variables_initializer())
-        step = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
+        epoch = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
     else:
         print('Created model with fresh parameters.')
         session.run(tf.local_variables_initializer())
         session.run(tf.global_variables_initializer())
-        step = 0
-    return step, model
+        epoch = 0
+    return epoch, steps, model
 
 
 def train():
@@ -73,29 +78,38 @@ def train():
         os.makedirs(FLAGS.train_dir)
 
     with tf.Session() as sess:
-        step, model = create_model(sess, fn_queue)
+        epoch, steps, model = create_model(sess, fn_queue)
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
         try:
+            step = 0
+            print('Epoch %d' % epoch)
             while not coord.should_stop():
                 start = time.time()
                 _, loss = sess.run([model.train, model.loss])
                 duration = time.time() - start
-
                 if step % 100 == 0:
-                    print('Step %d: loss = %.2f (%.3f sec)' %
-                          (step, loss, duration))
+                    print('  Step %s - loss = %.2f (%.3f sec)' %
+                          (str(step).ljust(len(str(steps))), loss, duration))
                 step += 1
+                if step == steps:
+                    model.saver.save(
+                        sess,
+                        os.path.join(FLAGS.train_dir, 'doccat.ckpt'),
+                        global_step=epoch)
+                    step = 0
+                    epoch += 1
+                    if epoch < FLAGS.num_epochs:
+                        print('Epoch %d' % epoch)
         except tf.errors.OutOfRangeError:
-            print('Done training for %d epochs, %d steps.' %
-                  (FLAGS.num_epochs, step))
+            print('Done training for %d epochs.' % FLAGS.num_epochs)
+            if step != 0:
+                model.saver.save(
+                    sess,
+                    os.path.join(FLAGS.train_dir, 'doccat.ckpt'),
+                    global_step=epoch)
         finally:
-            model.saver.save(
-                sess,
-                os.path.join(FLAGS.train_dir, 'doccat.ckpt'),
-                global_step=step)
-
             coord.request_stop()
 
         coord.join(threads)
