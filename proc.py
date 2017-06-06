@@ -14,7 +14,7 @@ tf.app.flags.DEFINE_string('data_dir', './data', 'Data directory.')
 tf.app.flags.DEFINE_string('aggregation', 'none', 'Aggregation scheme.')
 tf.app.flags.DEFINE_integer('vocab_size', 100000, 'Max vocabulary size.')
 tf.app.flags.DEFINE_integer('random_seed', 12358, 'Random seed.')
-tf.app.flags.DEFINE_float('test_split', .2, 'Split for testing data.')
+tf.app.flags.DEFINE_float('test_split', 0., 'Split for testing data.')
 tf.app.flags.DEFINE_float('valid_split', .2, 'Split for validation data.')
 tf.app.flags.DEFINE_bool('weights', False, 'Weighted training samples')
 
