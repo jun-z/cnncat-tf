@@ -4,6 +4,7 @@ from __future__ import division
 
 import os
 import json
+import glob
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -17,6 +18,7 @@ tf.app.flags.DEFINE_integer('random_seed', 12358, 'Random seed.')
 tf.app.flags.DEFINE_float('test_split', 0., 'Split for testing data.')
 tf.app.flags.DEFINE_float('valid_split', .2, 'Split for validation data.')
 tf.app.flags.DEFINE_bool('weights', False, 'Weighted training samples')
+tf.app.flags.DEFINE_bool('pretrained_embs', False, 'Use word vectors.')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -45,6 +47,31 @@ def get_split(data):
     return split
 
 
+def get_vocab(tokens=None):
+    specials = ['<pad>', '<unk>']
+    if tokens:
+        vocab = specials + sorted(tokens, key=tokens.get, reverse=True)
+        if len(vocab) > FLAGS.vocab_size:
+            vocab = vocab[:FLAGS.vocab_size]
+        return vocab
+    else:
+        embs = glob.glob(get_path('*.vec'))
+        tokens = []
+
+        if len(embs) == 0:
+            raise Exception('Did not find file with .vec ext.')
+        elif len(embs) > 1:
+            raise Exception('Found more than one file with .vec ext.')
+
+        with open(embs[0]) as f:
+            for i, line in enumerate(f):
+                if i == 0:
+                    emb_size = int(line.split()[1])
+                else:
+                    tokens.append(line.split()[0])
+        return specials + tokens, emb_size
+
+
 def read_data():
     data = pd.read_csv(
         FLAGS.input, names=get_names(), sep='\t', quoting=QN)
@@ -54,6 +81,11 @@ def read_data():
 
 
 def init(data):
+    if not FLAGS.weights:
+        weights = data.groupby(['label', 'text']).weight.sum()
+        weights.name = 'weight'
+        data = weights.to_frame().reset_index()
+
     tokens = {}
     labels = set()
     max_length = data.text.apply(lambda x: len(x.split())).max()
@@ -65,14 +97,17 @@ def init(data):
             else:
                 tokens[t] = r['weight']
 
-    vocab = ['<pad>', '<unk>'] + sorted(tokens, key=tokens.get, reverse=True)
-    vocab = vocab[:FLAGS.vocab_size]
+    if FLAGS.pretrained_embs:
+        vocab, emb_size = get_vocab()
+    else:
+        vocab = get_vocab(tokens)
+        emb_size = None
 
     labels = sorted(labels)
 
     write_list(vocab, 'vocab')
     write_list(labels, 'labels')
-    return vocab, labels, max_length
+    return vocab, labels, max_length, emb_size
 
 
 def aggregate(data):
@@ -145,13 +180,16 @@ if __name__ == '__main__':
     data = read_data()
 
     print('Initializing...')
-    _vocab, _labels, _length = init(data)
+    _vocab, _labels, _length, emb_size = init(data)
 
     meta = {
         'num_steps': _length,
         'num_labels': len(_labels),
         'vocab_size': len(_vocab)
     }
+
+    if FLAGS.pretrained_embs:
+        meta['emb_size'] = emb_size
 
     print('Splitting data...')
     split = get_split(data)
