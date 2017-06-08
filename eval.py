@@ -22,7 +22,7 @@ def _eval():
         string_tensor=eval_files, num_epochs=1)
 
     with tf.Session() as sess:
-        _, model = create_model(sess, fn_queue)
+        _, _, model = create_model(sess, fn_queue)
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
@@ -37,7 +37,7 @@ def _eval():
                 total += weights.sum()
                 step += 1
         except tf.errors.OutOfRangeError:
-            print('Evaluation done, weighted accuracy %.2f.'
+            print('Evaluation done, weighted accuracy %.4f.'
                   % (corrects / total))
         finally:
             coord.request_stop()
