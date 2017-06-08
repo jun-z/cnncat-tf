@@ -156,7 +156,7 @@ def write_list(l, kind):
 
 def write_records(data, _vocab, _labels, _length):
     for k in ['train', 'valid', 'test']:
-        writer = tf.python_io.TFRecordWriter(get_path('nopres.%s.tfr' % k))
+        writer = tf.python_io.TFRecordWriter(get_path('cnncat.%s.tfr' % k))
         for i, r in data[data.split == k].iterrows():
             label = _labels.index(str(r['label']))
             tokens = []

@@ -96,7 +96,7 @@ def train():
                 if step == steps:
                     model.saver.save(
                         sess,
-                        os.path.join(FLAGS.train_dir, 'doccat.ckpt'),
+                        os.path.join(FLAGS.train_dir, 'cnncat.ckpt'),
                         global_step=epoch)
                     step = 0
                     epoch += 1
@@ -107,7 +107,7 @@ def train():
             if step != 0:
                 model.saver.save(
                     sess,
-                    os.path.join(FLAGS.train_dir, 'doccat.ckpt'),
+                    os.path.join(FLAGS.train_dir, 'cnncat.ckpt'),
                     global_step=epoch)
         finally:
             coord.request_stop()
