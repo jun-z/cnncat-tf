@@ -4,7 +4,9 @@ from __future__ import division
 
 import os
 import time
+import glob
 import json
+import numpy as np
 import tensorflow as tf
 from cnn import CNN
 
@@ -19,6 +21,8 @@ tf.app.flags.DEFINE_integer('max_to_keep', 0, 'Max number of models to keep.')
 tf.app.flags.DEFINE_float('l2_cost', .0, 'L2 Cost.')
 tf.app.flags.DEFINE_float('keep_prob', .5, 'Keep prob for dropout')
 tf.app.flags.DEFINE_float('learning_rate', .001, 'Learning rate.')
+tf.app.flags.DEFINE_bool('trainable_embs', True, 'Trainable embeddings.')
+tf.app.flags.DEFINE_bool('pretrained_embs', False, 'Pretrained embeddings.')
 tf.app.flags.DEFINE_bool('use_fp16', False, 'Use tf.float16.')
 
 FLAGS = tf.app.flags.FLAGS
@@ -46,6 +50,8 @@ def create_model(session, fn_queue):
         filter_sizes,
         FLAGS.l2_cost,
         FLAGS.keep_prob,
+        get_embs(),
+        FLAGS.trainable_embs,
         FLAGS.learning_rate,
         FLAGS.max_to_keep,
         tf.float16 if FLAGS.use_fp16 else tf.float32)
@@ -62,6 +68,34 @@ def create_model(session, fn_queue):
         session.run(tf.global_variables_initializer())
         epoch = 0
     return epoch, steps, model
+
+
+def get_embs():
+    if FLAGS.pretrained_embs:
+        emb_files = glob.glob(os.path.join(FLAGS.data_dir, '*.vec'))
+
+        if len(emb_files) == 0:
+            raise Exception('Did not find file with .vec ext.')
+        elif len(emb_files) > 1:
+            raise Exception('Found more than one file with .vec ext.')
+
+        print('Loading embeddings from %s.' % emb_files[0])
+
+        embs = []
+        with open(emb_files[0]) as f:
+            for i, line in enumerate(f):
+                if i == 0:
+                    vocab_size, emb_size = [int(s) for s in line.split()]
+                    scale = np.sqrt(3) / np.sqrt(vocab_size + 2)
+                    for i in range(2):
+                        rand = np.random.uniform(-scale, scale, emb_size)
+                        embs.append(rand.astype('float32'))
+                else:
+                    embs.append(np.asarray(line.split()[1:], dtype='float32'))
+
+        return np.vstack(embs)
+    else:
+        return None
 
 
 def train():

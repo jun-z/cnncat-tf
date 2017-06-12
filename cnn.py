@@ -42,6 +42,8 @@ class CNN(object):
                  filter_sizes,
                  l2_cost,
                  keep_prob,
+                 initial_embs,
+                 trainable_embs,
                  learning_rate,
                  max_to_keep,
                  dtype=tf.float32):
@@ -53,8 +55,15 @@ class CNN(object):
         self.weight = tf.cast(batch['weight'], dtype)
 
         with tf.device('/cpu:0'):
-            embedding = tf.get_variable(
-                'embedding', [vocab_size, emb_size], dtype=dtype)
+            if initial_embs is not None:
+                embedding = tf.get_variable(
+                    'embedding', dtype=dtype,
+                    trainable=trainable_embs,
+                    initializer=tf.constant(initial_embs))
+            else:
+                embedding = tf.get_variable(
+                    'embedding', [vocab_size, emb_size],
+                    dtype=dtype, trainable=trainable_embs)
 
             inp_emb = tf.expand_dims(
                 tf.nn.embedding_lookup(embedding, self.tokens), -1)
