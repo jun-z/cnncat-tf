@@ -10,8 +10,8 @@ import tensorflow as tf
 from csv import QUOTE_NONE as QN
 
 tf.app.flags.DEFINE_string('input', '', 'Input file.')
-tf.app.flags.DEFINE_string('emb_path', '', 'Path to pretrained embs.')
 tf.app.flags.DEFINE_string('data_dir', './data', 'Data directory.')
+tf.app.flags.DEFINE_string('embs_path', '', 'Path to pretrained embs.')
 tf.app.flags.DEFINE_integer('random_seed', 12358, 'Random seed.')
 tf.app.flags.DEFINE_integer('vocab_size', 0, 'Max vocabulary size.')
 tf.app.flags.DEFINE_integer('vocab_cutoff', 5, 'Cutoff for vocabulary.')
@@ -68,7 +68,7 @@ def get_vocab(tokens=None):
             vocab = vocab[:FLAGS.vocab_size]
     else:
         vocab = []
-        with open(FLAGS.emb_path) as f:
+        with open(FLAGS.embs_path) as f:
             for i, line in enumerate(f):
                 if i > 0:
                     vocab.append(line.split()[0])
@@ -87,17 +87,17 @@ def read_data():
 
 def proc_embs(vocab):
     embs = {}
-    with open(FLAGS.emb_path) as f:
+    with open(FLAGS.embs_path) as f:
         for i, line in enumerate(f):
             if i == 0:
-                info = line
-                vocab_size, emb_size = [int(s) for s in line.split()]
+                emb_size = int(line.split()[1])
+                vocab_size = len(vocab)
             else:
                 embs[line.split()[0]] = line
 
     scale = np.sqrt(3) / np.sqrt(vocab_size + 2)
-    with open(get_path('cnncat_embs.vec'), 'w') as f:
-        f.write(info)
+    with open(get_path('cnncat.embs.vec'), 'w') as f:
+        f.write(' '.join([str(vocab_size), str(emb_size)]) + '\n')
         f.write(embs['</s>'])
         f.write(' '.join(['<unk>'] + ['0'] * emb_size) + '\n')
         for w in vocab[2:]:
@@ -105,7 +105,7 @@ def proc_embs(vocab):
                 f.write(embs[w])
             else:
                 ra = np.random.uniform(-scale, scale, emb_size)
-                f.write(' '.join([w] + map(str, ra)))
+                f.write(' '.join([w] + map(str, ra)) + '\n')
 
     return emb_size
 
@@ -119,7 +119,7 @@ def init(data):
     labels = sorted(set(data.label))
     max_length = data.text.apply(lambda x: len(x.split())).max()
 
-    if FLAGS.emb_path and FLAGS.oov_embs:
+    if FLAGS.embs_path and FLAGS.oov_embs:
         vocab = get_vocab()
         emb_size = proc_embs(vocab)
     else:
@@ -132,7 +132,7 @@ def init(data):
                     tokens[t] = r['weight']
         vocab = get_vocab(tokens)
 
-        if FLAGS.emb_path:
+        if FLAGS.embs_path:
             emb_size = proc_embs(vocab)
         else:
             emb_size = None
@@ -251,12 +251,13 @@ if __name__ == '__main__':
     _vocab, _labels, _length, emb_size = init(data)
 
     meta = {
+        'flattened': FLAGS.flatten,
         'num_steps': _length,
         'num_labels': len(_labels),
         'vocab_size': len(_vocab)
     }
 
-    if FLAGS.emb_path:
+    if FLAGS.embs_path:
         meta['emb_size'] = emb_size
 
     if FLAGS.aggregate:
