@@ -28,10 +28,7 @@ tf.app.flags.DEFINE_bool('use_fp16', False, 'Use tf.float16.')
 FLAGS = tf.app.flags.FLAGS
 
 
-def create_model(session, fn_queue):
-    with open(os.path.join(FLAGS.data_dir, 'meta.json')) as f:
-        meta = json.load(f)
-
+def create_model(session, fn_queue, meta):
     if meta['train_size'] % FLAGS.batch_size > 0:
         steps = meta['train_size'] // FLAGS.batch_size + 1
     else:
@@ -50,6 +47,7 @@ def create_model(session, fn_queue):
         filter_sizes,
         FLAGS.l2_cost,
         FLAGS.keep_prob,
+        meta['flattened'],
         get_embs(),
         FLAGS.trainable_embs,
         FLAGS.learning_rate,
@@ -68,6 +66,12 @@ def create_model(session, fn_queue):
         session.run(tf.global_variables_initializer())
         epoch = 0
     return epoch, steps, model
+
+
+def get_meta():
+    with open(os.path.join(FLAGS.data_dir, 'meta.json')) as f:
+        meta = json.load(f)
+    return meta
 
 
 def get_embs():
@@ -112,7 +116,8 @@ def train():
         os.makedirs(FLAGS.train_dir)
 
     with tf.Session() as sess:
-        epoch, steps, model = create_model(sess, fn_queue)
+        meta = get_meta()
+        epoch, steps, model = create_model(sess, fn_queue, meta)
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 

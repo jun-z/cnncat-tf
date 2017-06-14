@@ -1,18 +1,26 @@
 import tensorflow as tf
 
 
-def get_batch(fn_queue, num_steps, batch_size):
+def get_batch(fn_queue, num_steps, num_labels, batch_size, flattened):
     reader = tf.TFRecordReader()
     _, serialized = reader.read(fn_queue)
 
     context_features = {
-        'label': tf.FixedLenFeature([], dtype=tf.int64),
         'length': tf.FixedLenFeature([], dtype=tf.int64),
         'weight': tf.FixedLenFeature([], dtype=tf.float32),
     }
     sequence_features = {
         'tokens': tf.FixedLenSequenceFeature([], dtype=tf.int64)
     }
+
+    if flattened:
+        sequence_features.update({
+            'label': tf.FixedLenSequenceFeature([], dtype=tf.float32)
+        })
+    else:
+        context_features.update({
+            'label': tf.FixedLenFeature([], dtype=tf.int64)
+        })
 
     context, sequence = tf.parse_single_sequence_example(
         serialized,
@@ -23,10 +31,16 @@ def get_batch(fn_queue, num_steps, batch_size):
     example.update(context)
     example.update(sequence)
 
-    batch = tf.train.batch(
-        example, batch_size,
-        allow_smaller_final_batch=True,
-        shapes=[(), (), (num_steps), ()])
+    if flattened:
+        batch = tf.train.batch(
+            example, batch_size,
+            allow_smaller_final_batch=True,
+            shapes=[(num_labels), (), (num_steps), ()])
+    else:
+        batch = tf.train.batch(
+            example, batch_size,
+            allow_smaller_final_batch=True,
+            shapes=[(), (), (num_steps), ()])
     return batch
 
 
@@ -42,13 +56,15 @@ class CNN(object):
                  filter_sizes,
                  l2_cost,
                  keep_prob,
+                 flattened,
                  initial_embs,
                  trainable_embs,
                  learning_rate,
                  max_to_keep,
                  dtype=tf.float32):
 
-        batch = get_batch(fn_queue, num_steps, batch_size)
+        batch = get_batch(
+            fn_queue, num_steps, num_labels, batch_size, flattened)
 
         self.label = batch['label']
         self.tokens = batch['tokens']
@@ -100,7 +116,11 @@ class CNN(object):
                 initializer=tf.constant_initializer(.1))
 
         logits = tf.matmul(dropped, W) + b
-        targets = tf.one_hot(self.label, num_labels, dtype=dtype)
+
+        if flattened:
+            targets = self.label
+        else:
+            targets = tf.one_hot(self.label, num_labels, dtype=dtype)
 
         xentropy = tf.nn.softmax_cross_entropy_with_logits(logits, targets)
         weighted = tf.mul(xentropy, self.weight)

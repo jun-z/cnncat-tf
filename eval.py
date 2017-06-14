@@ -4,9 +4,11 @@ from __future__ import division
 
 import os
 import tensorflow as tf
-from train import FLAGS, create_model
+from train import FLAGS, get_meta, create_model
 
 tf.app.flags.DEFINE_string('action', 'valid', 'Valid or test.')
+
+FLAGS.keep_prob = 1.0
 
 
 def _eval():
@@ -22,7 +24,9 @@ def _eval():
         string_tensor=eval_files, num_epochs=1)
 
     with tf.Session() as sess:
-        _, _, model = create_model(sess, fn_queue)
+        meta = get_meta()
+        meta['flattened'] = False
+        _, _, model = create_model(sess, fn_queue, meta)
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
