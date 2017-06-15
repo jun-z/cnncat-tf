@@ -175,15 +175,14 @@ def flatten(data, _labels):
     train = data[data.split == 'train']
     other = data[data.split != 'train']
 
-    train = train.pivot(index='text', columns='label', values='weight')
-    train = train.reindex(columns=_labels)
-    train.fillna(value=0, inplace=True)
-
     texts = []
     labels = []
-    for t in train.itertuples():
-        texts.append(t[0])
-        labels.append(t[1:])
+    for t, d in train.groupby('text'):
+        texts.append(t)
+        label = {}
+        for i, r in d.iterrows():
+            label[r['label']] = r['weight']
+        labels.append(label)
 
     train = pd.DataFrame({'text': texts, 'label': labels})
     train['weight'] = 1
@@ -195,10 +194,12 @@ def flatten(data, _labels):
 def serialize(label, tokens, length, weight):
     seq = tf.train.SequenceExample()
 
-    if isinstance(label, tuple):
-        _label = seq.feature_lists.feature_list['label']
-        for l in label:
-            _label.feature.add().float_list.value.append(l)
+    if isinstance(label, dict):
+        _labels = seq.feature_lists.feature_list['labels']
+        _values = seq.feature_lists.feature_list['values']
+        for l, v in label.iteritems():
+            _labels.feature.add().int64_list.value.append(l)
+            _values.feature.add().float_list.value.append(v)
     else:
         seq.context.feature['label'].int64_list.value.append(label)
 
@@ -224,7 +225,7 @@ def write_records(data, _vocab, _labels, _length):
         writer = tf.python_io.TFRecordWriter(get_path('cnncat.%s.tfr' % k))
         for i, r in data[data.split == k].iterrows():
             if FLAGS.flatten and k == 'train':
-                label = r['label']
+                label = {_labels[k]: v for k, v in r['label'].iteritems()}
             else:
                 label = _labels[r['label']]
             tokens = []

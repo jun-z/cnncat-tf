@@ -15,7 +15,8 @@ def get_batch(fn_queue, num_steps, num_labels, batch_size, flattened):
 
     if flattened:
         sequence_features.update({
-            'label': tf.FixedLenSequenceFeature([], dtype=tf.float32)
+            'labels': tf.FixedLenSequenceFeature([], dtype=tf.int64),
+            'values': tf.FixedLenSequenceFeature([], dtype=tf.float32)
         })
     else:
         context_features.update({
@@ -34,8 +35,8 @@ def get_batch(fn_queue, num_steps, num_labels, batch_size, flattened):
     if flattened:
         batch = tf.train.batch(
             example, batch_size,
-            allow_smaller_final_batch=True,
-            shapes=[(num_labels), (), (num_steps), ()])
+            dynamic_pad=True,
+            allow_smaller_final_batch=True)
     else:
         batch = tf.train.batch(
             example, batch_size,
@@ -67,7 +68,11 @@ class CNN(object):
         batch = get_batch(
             fn_queue, num_steps, num_labels, batch_size, flattened)
 
-        self.label = batch['label']
+        if flattened:
+            self.labels = batch['labels']
+            self.values = batch['values']
+        else:
+            self.label = batch['label']
         self.tokens = batch['tokens']
         self.weight = tf.cast(batch['weight'], dtype)
 
@@ -119,7 +124,9 @@ class CNN(object):
         logits = tf.matmul(dropped, W) + b
 
         if flattened:
-            targets = self.label
+            targets = tf.one_hot(self.labels, num_labels, dtype=dtype)
+            targets = tf.reduce_sum(
+                targets * tf.expand_dims(self.values, -1), axis=1)
         else:
             targets = tf.one_hot(self.label, num_labels, dtype=dtype)
 
