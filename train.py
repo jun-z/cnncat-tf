@@ -18,6 +18,7 @@ tf.app.flags.DEFINE_integer('num_epochs', 5, 'Number of epochs.')
 tf.app.flags.DEFINE_integer('num_filters', 64, 'Number of filters per size.')
 tf.app.flags.DEFINE_integer('emb_size', 100, 'Size of embedding.')
 tf.app.flags.DEFINE_integer('max_to_keep', 0, 'Max number of models to keep.')
+tf.app.flags.DEFINE_float('beta', .0, 'Beta for penalization.')
 tf.app.flags.DEFINE_float('l2_cost', .0, 'L2 Cost.')
 tf.app.flags.DEFINE_float('keep_prob', .5, 'Keep prob for dropout')
 tf.app.flags.DEFINE_float('learning_rate', .001, 'Learning rate.')
@@ -45,6 +46,7 @@ def create_model(session, fn_queue, meta):
         FLAGS.emb_size,
         meta['vocab_size'],
         filter_sizes,
+        FLAGS.beta,
         FLAGS.l2_cost,
         FLAGS.keep_prob,
         meta['flattened'],
@@ -60,6 +62,7 @@ def create_model(session, fn_queue, meta):
         model.saver.restore(session, ckpt.model_checkpoint_path)
         session.run(tf.local_variables_initializer())
         epoch = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
+        epoch += 1
     else:
         print('Created model with fresh parameters.')
         session.run(tf.local_variables_initializer())
@@ -120,6 +123,7 @@ def train():
         epoch, steps, model = create_model(sess, fn_queue, meta)
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+        num_epochs = epoch + FLAGS.num_epochs
 
         try:
             step = 0
@@ -139,10 +143,10 @@ def train():
                         global_step=epoch)
                     step = 0
                     epoch += 1
-                    if epoch < FLAGS.num_epochs:
+                    if epoch < num_epochs:
                         print('Epoch %d' % epoch)
         except tf.errors.OutOfRangeError:
-            print('Done training for %d epochs.' % FLAGS.num_epochs)
+            print('Done training for %d epochs.' % num_epochs)
             if step != 0:
                 model.saver.save(
                     sess,

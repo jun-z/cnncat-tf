@@ -54,6 +54,7 @@ class CNN(object):
                  emb_size,
                  vocab_size,
                  filter_sizes,
+                 beta,
                  l2_cost,
                  keep_prob,
                  flattened,
@@ -122,7 +123,16 @@ class CNN(object):
         else:
             targets = tf.one_hot(self.label, num_labels, dtype=dtype)
 
+        self.probs = tf.nn.softmax(logits)
+
         xentropy = tf.nn.softmax_cross_entropy_with_logits(logits, targets)
+
+        if beta > 0:
+            _entropy = -tf.reduce_sum(
+                self.probs * tf.log(tf.clip_by_value(self.probs, 1e-10, 1.0)),
+                reduction_indices=[1])
+            xentropy = xentropy - beta * _entropy
+
         weighted = tf.mul(xentropy, self.weight)
 
         self.loss = tf.reduce_sum(weighted) / tf.reduce_sum(self.weight)
@@ -134,7 +144,6 @@ class CNN(object):
         params = tf.trainable_variables()
         grads = tf.gradients(self.loss, params)
 
-        self.probs = tf.nn.softmax(logits)
         self.train = optimizer.apply_gradients(zip(grads, params))
         self.saver = tf.train.Saver(
             tf.global_variables(), max_to_keep=max_to_keep)
