@@ -1,6 +1,26 @@
 import tensorflow as tf
 
 
+def shuffle(tensors):
+    shapes = [tensors[k].get_shape() for k in sorted(tensors)]
+    tensor_list = [tensors[k] for k in sorted(tensors)]
+
+    with tf.name_scope('shuffle', values=tensor_list):
+        queue = tf.RandomShuffleQueue(
+            50000, 10000, [t.dtype for t in tensor_list])
+        enqueue_op = queue.enqueue(tensor_list)
+
+        tf.train.add_queue_runner(
+            tf.train.QueueRunner(queue, [enqueue_op] * 1))
+
+        dequeued = queue.dequeue()
+
+        for t, s in zip(dequeued, shapes):
+            t.set_shape(s)
+
+        return {k: dequeued[i] for i, k in enumerate(sorted(tensors))}
+
+
 def get_batch(fn_queue, num_steps, num_labels, batch_size, flattened):
     reader = tf.TFRecordReader()
     _, serialized = reader.read(fn_queue)
@@ -33,13 +53,16 @@ def get_batch(fn_queue, num_steps, num_labels, batch_size, flattened):
     example.update(sequence)
 
     if flattened:
+        example = shuffle(example)
+
         batch = tf.train.batch(
             example, batch_size,
             dynamic_pad=True,
             allow_smaller_final_batch=True)
     else:
-        batch = tf.train.batch(
+        batch = tf.train.shuffle_batch(
             example, batch_size,
+            50000, 10000,
             allow_smaller_final_batch=True,
             shapes=[(), (), (num_steps), ()])
     return batch
