@@ -13,6 +13,7 @@ tf.app.flags.DEFINE_string('input', '', 'Input file.')
 tf.app.flags.DEFINE_string('data_dir', './data', 'Data directory.')
 tf.app.flags.DEFINE_string('embs_path', '', 'Path to pretrained embs.')
 tf.app.flags.DEFINE_integer('random_seed', 12358, 'Random seed.')
+tf.app.flags.DEFINE_integer('label_size', 0, 'Max size of labels.')
 tf.app.flags.DEFINE_integer('vocab_size', 0, 'Max vocabulary size.')
 tf.app.flags.DEFINE_integer('vocab_cutoff', 5, 'Cutoff for vocabulary.')
 tf.app.flags.DEFINE_float('test_split', 0., 'Split for testing data.')
@@ -159,6 +160,10 @@ def normalize(data):
     train = data[data.split == 'train']
     other = data[data.split != 'train']
 
+    if FLAGS.label_size:
+        train = train.sort_values('weight', ascending=False)
+        train = train.groupby('text').head(FLAGS.label_size)
+
     all_weights = train.groupby('text').weight.sum()
     all_weights.name = 'all_weights'
     all_weights = all_weights.to_frame().reset_index()
@@ -171,7 +176,7 @@ def normalize(data):
     return pd.concat([train, other], ignore_index=True)
 
 
-def flatten(data, _labels):
+def flatten(data):
     train = data[data.split == 'train']
     other = data[data.split != 'train']
 
@@ -275,7 +280,7 @@ if __name__ == '__main__':
 
     if FLAGS.flatten:
         print('Flattening...')
-        data = flatten(data, _labels)
+        data = flatten(data)
 
     meta['train_size'] = data[data.split == 'train'].shape[0]
 
