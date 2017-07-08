@@ -93,10 +93,6 @@ def get_embs():
             for i, line in enumerate(f):
                 if i == 0:
                     vocab_size, emb_size = [int(s) for s in line.split()]
-                    scale = np.sqrt(3) / np.sqrt(vocab_size + 2)
-                    for i in range(2):
-                        rand = np.random.uniform(-scale, scale, emb_size)
-                        embs.append(rand.astype('float32'))
                 else:
                     embs.append(np.asarray(line.split()[1:], dtype='float32'))
 
