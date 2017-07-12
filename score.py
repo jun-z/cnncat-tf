@@ -86,6 +86,18 @@ class CNN(object):
         self.saver = tf.train.Saver(tf.global_variables())
 
 
+class Model():
+    def __init__(self, train_dir, num_steps):
+        self.graph = tf.Graph()
+        self.sess = tf.Session(graph=self.graph)
+        with self.graph.as_default():
+            self.model = load_model(self.sess, num_steps)
+
+    def predict(self, tokens):
+        return self.sess.run(
+            self.model.probs, feed_dict={self.model.tokens: tokens})
+
+
 def get_names():
     names = ['text']
     if FLAGS.labels:
@@ -193,33 +205,29 @@ def main(_):
     chunks = get_chunks()
     num_steps = get_num_steps()
 
-    with tf.Session() as sess:
-        model = load_model(sess, num_steps)
-        if FLAGS.labels:
-            total = 0
-            correct = 0
-        for chunk in chunks:
-            probs = sess.run(
-                model.probs,
-                feed_dict={
-                    model.tokens: get_tokens(chunk, vocab, num_steps)})
-            idx = probs.argsort()
-            for i in range(1, FLAGS.num_probs + 1):
-                chunk['prob%i' % i] = [probs[j, l]
-                                       for j, l in enumerate(idx[:, -i])]
-                chunk['pred%i' % i] = [labels[l]
-                                       for l in idx[:, -i]]
-
-            if FLAGS.labels:
-                total += chunk.weight.sum()
-                correct += chunk[chunk.label == chunk.pred1].weight.sum()
-
-            chunk.to_csv(
-                FLAGS.output, index=False, header=False,
-                sep='\t', quoting=QN,  mode='a')
+    model = Model(FLAGS.train_dir, num_steps)
+    if FLAGS.labels:
+        total = 0
+        correct = 0
+    for chunk in chunks:
+        probs = model.predict(get_tokens(chunk, vocab, num_steps))
+        idx = probs.argsort()
+        for i in range(1, FLAGS.num_probs + 1):
+            chunk['prob%i' % i] = [probs[j, l]
+                                   for j, l in enumerate(idx[:, -i])]
+            chunk['pred%i' % i] = [labels[l]
+                                   for l in idx[:, -i]]
 
         if FLAGS.labels:
-            print('Accuracy: %.4f.' % (correct / total))
+            total += chunk.weight.sum()
+            correct += chunk[chunk.label == chunk.pred1].weight.sum()
+
+        chunk.to_csv(
+            FLAGS.output, index=False, header=False,
+            sep='\t', quoting=QN,  mode='a')
+
+    if FLAGS.labels:
+        print('Accuracy: %.4f.' % (correct / total))
 
 
 if __name__ == '__main__':
