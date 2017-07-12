@@ -21,7 +21,9 @@ tf.app.flags.DEFINE_float('learning_rate', .001, 'Learning rate.')
 tf.app.flags.DEFINE_bool('labels', False, 'Whether the data has labels.')
 tf.app.flags.DEFINE_bool('weights', False, 'Whether the data is weighted.')
 tf.app.flags.DEFINE_bool('aggregate', False, 'Whether to aggregate data.')
+tf.app.flags.DEFINE_bool('ensemble', False, 'Use an ensemble of models.')
 tf.app.flags.DEFINE_bool('use_fp16', False, 'Use tf.float16.')
+
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -91,7 +93,7 @@ class Model():
         self.graph = tf.Graph()
         self.sess = tf.Session(graph=self.graph)
         with self.graph.as_default():
-            self.model = load_model(self.sess, num_steps)
+            self.model = load_model(train_dir, self.sess, num_steps)
 
     def predict(self, tokens):
         return self.sess.run(
@@ -117,7 +119,7 @@ def load_data(data_dir, ext):
     return data
 
 
-def load_model(session, num_steps):
+def load_model(train_dir, session, num_steps):
     filter_sizes = [int(fs) for fs in FLAGS.filter_sizes.split(',')]
 
     model = CNN(
@@ -130,7 +132,7 @@ def load_model(session, num_steps):
         1.0,
         tf.float16 if FLAGS.use_fp16 else tf.float32)
 
-    ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
+    ckpt = tf.train.get_checkpoint_state(train_dir)
     if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
         print('Restoring model from %s.' % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
@@ -205,12 +207,30 @@ def main(_):
     chunks = get_chunks()
     num_steps = get_num_steps()
 
-    model = Model(FLAGS.train_dir, num_steps)
+    if FLAGS.ensemble:
+        ensemble = []
+        for f in os.listdir(FLAGS.train_dir):
+            d = os.path.join(FLAGS.train_dir, f)
+            if os.path.isdir(d):
+                ensemble.append(Model(d, num_steps))
+    else:
+        model = Model(FLAGS.train_dir, num_steps)
+
     if FLAGS.labels:
         total = 0
         correct = 0
     for chunk in chunks:
-        probs = model.predict(get_tokens(chunk, vocab, num_steps))
+        tokens = get_tokens(chunk, vocab, num_steps)
+        if FLAGS.ensemble:
+            for i, model in enumerate(ensemble):
+                if i == 0:
+                    probs = model.predict(tokens)
+                else:
+                    probs += model.predict(tokens)
+            probs = probs / len(ensemble)
+        else:
+            probs = model.predict(tokens)
+
         idx = probs.argsort()
         for i in range(1, FLAGS.num_probs + 1):
             chunk['prob%i' % i] = [probs[j, l]
