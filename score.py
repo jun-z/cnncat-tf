@@ -145,7 +145,7 @@ def load_model(train_dir, session, num_steps):
 def get_tokens(chunk, vocab, num_steps):
     tokens = []
     for i, r in chunk.iterrows():
-        row = [vocab.index(t)
+        row = [vocab[t]
                if t in vocab else 1
                for t in r['text'].split()]
         if len(row) > num_steps:
@@ -180,7 +180,7 @@ def get_chunks():
             for i in range(nc):
                 chunks.append(data[i::nc])
     else:
-        data = pd.read_csv(
+        chunks = pd.read_csv(
             FLAGS.input, names=get_names(),
             sep='\t', quoting=QN, chunksize=FLAGS.batch_size)
     return chunks
@@ -203,6 +203,7 @@ def main(_):
         raise ValueError('Output cannot be empty.')
 
     vocab = load_data(FLAGS.data_dir, '.vocab')
+    vocab = {w: i for i, w in enumerate(vocab)}
     labels = load_data(FLAGS.data_dir, '.labels')
     chunks = get_chunks()
     num_steps = get_num_steps()
